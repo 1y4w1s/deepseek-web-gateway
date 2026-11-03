@@ -7,6 +7,21 @@ const path = require('node:path');
 // Fail instead of silently launching an unpatched adapter after an upstream change.
 const edits = [
   {
+    "id": "dsh-unkeyed-signature",
+    "before": "function unkeyedAgentId(remoteAddr, userAgent) {",
+    "after": "function unkeyedAgentId(remoteAddr, userAgent, messages = []) {"
+  },
+  {
+    "id": "dsh-unkeyed-seed",
+    "before": "    const digest = crypto.createHash('sha256').update(`${addr}\\u0000${ua}`, 'utf8').digest('hex').slice(0, 12);",
+    "after": "    // DSH uses a shared User-Agent across distinct tasks and sends no x-agent-session.\n    // Keep one task's turns together without merging unrelated first user prompts.\n    const firstUser = Array.isArray(messages) ? messages.find(m => m && m.role === 'user') : null;\n    const firstText = firstUser ? normalizeMessageContent(firstUser.content) : '';\n    const taskSeed = /^deepseek-harness\\//i.test(ua) && firstText\n        ? crypto.createHash('sha256').update(firstText, 'utf8').digest('hex') : '';\n    const key = `${addr}\\u0000${ua}` + (taskSeed ? `\\u0000${taskSeed}` : '');\n    const digest = crypto.createHash('sha256').update(key, 'utf8').digest('hex').slice(0, 12);"
+  },
+  {
+    "id": "dsh-unkeyed-call",
+    "before": "                : unkeyedAgentId(remoteAddr, req.headers['user-agent']);",
+    "after": "                : unkeyedAgentId(remoteAddr, req.headers['user-agent'], messages);"
+  },
+  {
     "id": "web-tool-prompt",
     "before": "    text += 'Web: DeepSeek Search is already on. Answer in plain text with the findings. Do not use bash, curl, websearch, or webfetch for the web, and do not say you lack web access.\\n';",
     "after": "    text += toolFunctionNames(tools).some(name => /web_?search|web_?fetch|browser_search/i.test(name))\n        ? 'Web: Use the advertised web search/fetch tool for live facts. For GitHub source, use an available git/terminal tool to inspect real files when permitted; do not invent fetched content.\\n'\n        : 'Web: Native DeepSeek web search may be available depending on model settings. To read GitHub source, use an advertised git/terminal tool when permitted; otherwise state that source access is unavailable.\\n';"
