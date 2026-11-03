@@ -35,7 +35,7 @@ git clone https://github.com/1y4w1s/deepseek-web-gateway.git
 | 思考模式 | `deepseek-v4-flash-thinking-nosearch` |
 | 思考 + DeepSeek 网页搜索 | `deepseek-v4-flash-thinking` |
 
-在 DSH 中**新增**自定义模型提供商，无需替换原有账号或默认 Provider。首次在独立测试会话中以**只读权限**验证工具调用、流式输出及多轮上下文。网关支持用 `x-agent-session` 维持独立会话，客户端如不传递会由代理按客户端特征分配。
+在 DSH 中**新增**自定义模型提供商，无需替换原有账号或默认 Provider。首次在独立测试会话中以**只读权限**验证工具调用、流式输出及多轮上下文。网关支持用 `x-agent-session` 维持独立会话。对于未提供该标识的 DSH 客户端，补丁还会结合首条用户任务生成稳定哈希，避免不同任务仅因共用本机地址和 DSH User-Agent 就混入同一个网页会话（首条任务内容完全相同仍可能共用；显式会话标识更可靠）。
 
 默认只监听 `127.0.0.1`，**不对局域网或公网开放**。在另一台电脑使用时，在那台电脑本地部署并登录，不要复制当前电脑的凭证。
 
@@ -60,6 +60,21 @@ node --test tests/compat.test.cjs
 测试涵盖：新旧提示矛盾、GitHub 源码访问指引、工具恢复提示、补丁重复执行和上游变更时的明确失败。**这不等于完成 DSH 真实工具调用验收。**
 
 注意：若启动时检测到本机 **9655 已经运行**，启动器会直接打开控制台，不会热替换当前进程中的代码。需要应用新版本补丁时，先正常停止属于该网关的进程，再启动；不要批量终止其他 Node 进程。
+
+## 限流与 DSH 重试（可选配置，不自动修改 DSH）
+
+真实任务中曾发生：DSH 成功 `git fetch` 且 `HEAD` 与远程分支一致，但继续请求模型后触发网页端 600 秒限流；DSH 默认对 `RATE_LIMIT` 重试五次。这个网关无法替 DSH 消除客户端自有的重试策略。**可在 DSH 已有的 `llm-pi-ai` → `providers` → `deepseek-web-local` 条目内**添加下列配置（不要另建第二个同 ID 的 patch entry）：
+
+```yaml
+retryPolicy:
+  mode: normal
+  maxRetries: 1
+  retryableCodes: [EMPTY_RESPONSE, SERVER, TIMEOUT, TRANSPORT]
+```
+
+这保留了其他临时故障最多一次重试，但**遇到 RATE_LIMIT 立即向用户报告**，避免在 10 分钟冷却期内重复轰炸网页登录会话。其它模型提供方的策略不受影响。此配置需要在另一台电脑的 DSH 自行选择应用；独立网关安装脚本不会写 DSH 配置。
+
+来源：DeepSeek Harness 官方 `packages/llm/llm/src/retry-policy.ts` 与 `packages/llm/llm-retry/README.zh.md`。
 
 ## 文件与排障
 
