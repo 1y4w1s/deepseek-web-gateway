@@ -1,0 +1,67 @@
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+$root = $PSScriptRoot
+$runtime = Join-Path $root 'runtime'
+$upstream = Join-Path $runtime 'upstream'
+$log = Join-Path $runtime 'launcher.log'
+$dashboard = 'http://127.0.0.1:9655/dashboard'
+New-Item -ItemType Directory -Path $runtime -Force | Out-Null
+
+function Test-DeepSeekHealth {
+    try {
+        $health = Invoke-RestMethod -Uri 'http://127.0.0.1:9655/health' -TimeoutSec 2
+        return $health.service -eq 'FreeDeepseekAPI'
+    } catch {
+        return $false
+    }
+}
+
+try {
+    if (Test-DeepSeekHealth) {
+        Start-Process $dashboard
+        return
+    }
+
+    $node = (Get-Command node.exe -ErrorAction Stop).Source
+    if (-not (Test-Path (Join-Path $upstream 'server.js'))) {
+        if (Test-Path $upstream) {
+            throw 'Incomplete runtime\upstream directory. Refusing to overwrite it.'
+        }
+        $git = (Get-Command git.exe -ErrorAction Stop).Source
+        $args = 'clone --branch stable --depth 1 https://github.com/dekrezz/FreeDeepseekAPI.git "' + $upstream + '"'
+        $clone = Start-Process -FilePath $git -ArgumentList $args -WorkingDirectory $runtime -WindowStyle Hidden -PassThru -Wait -RedirectStandardOutput (Join-Path $runtime 'git.stdout.log') -RedirectStandardError (Join-Path $runtime 'git.stderr.log')
+        if ($clone.ExitCode -ne 0) {
+            throw 'Clone failed. Inspect runtime\git.stderr.log.'
+        }
+    }
+
+    if (-not (Test-Path (Join-Path $upstream 'deepseek-auth.json'))) {
+        $authScript = Join-Path $root 'Authenticate.ps1'
+        $authArgs = '-NoProfile -ExecutionPolicy Bypass -File "' + $authScript + '"'
+        $auth = Start-Process -FilePath 'powershell.exe' -ArgumentList $authArgs -PassThru -Wait
+        if ($auth.ExitCode -ne 0 -or -not (Test-Path (Join-Path $upstream 'deepseek-auth.json'))) {
+            throw 'DeepSeek account sign-in was not completed.'
+        }
+    }
+
+    $env:HOST = '127.0.0.1'
+    $env:PORT = '9655'
+    $env:NON_INTERACTIVE = '1'
+    $env:SKIP_ACCOUNT_MENU = '1'
+    $server = Start-Process -FilePath $node -ArgumentList 'scripts/start.js' -WorkingDirectory $upstream -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runtime 'server.stdout.log') -RedirectStandardError (Join-Path $runtime 'server.stderr.log')
+    $server.Id | Set-Content (Join-Path $runtime 'server.pid')
+
+    $ready = $false
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Seconds 1
+        if (Test-DeepSeekHealth) { $ready = $true; break }
+        if ($server.HasExited) { break }
+    }
+    if (-not $ready) {
+        throw 'Local API did not become ready. Inspect runtime\server.stderr.log.'
+    }
+    Start-Process $dashboard
+} catch {
+    ('[' + (Get-Date -Format 's') + '] ' + $_.Exception.Message) | Add-Content $log
+    Start-Process -FilePath 'notepad.exe' -ArgumentList ('"' + $log + '"')
+}
