@@ -90,6 +90,46 @@ const edits = [
     "id": "pow-after-recreate-pacing",
     "before": "                const newPowB64 = await createDeepSeekPowHeader(account, DEEPSEEK_COMPLETION_PATH);\n                await paceAccountCompletion(account);\n                const resp2 = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {",
     "after": "                await paceAccountCompletion(account);\n                const newPowB64 = await createDeepSeekPowHeader(account, DEEPSEEK_COMPLETION_PATH);\n                const resp2 = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {"
+  },
+  {
+    "id": "auth-block-state",
+    "before": "        adminDisabled: false,",
+    "after": "        adminDisabled: false,\n        authBlocked: false,"
+  },
+  {
+    "id": "auth-block-on-reauth",
+    "before": "            prev.cooldownReason = null;\n            prev.failures = 0;",
+    "after": "            prev.cooldownReason = null;\n            prev.authBlocked = false;\n            prev.failures = 0;"
+  },
+  {
+    "id": "auth-block-on-enable",
+    "before": "    return account?.config?.enabled !== false && account?.adminDisabled !== true;",
+    "after": "    return account?.config?.enabled !== false && account?.adminDisabled !== true && account?.authBlocked !== true;"
+  },
+  {
+    "id": "auth-block-401-only",
+    "before": "        account.cooldownReason = 'auth';\n        console.log(`[account:${account.id}] cooldown for",
+    "after": "        account.cooldownReason = 'auth';\n        if (code === 401) account.authBlocked = true;\n        console.log(`[account:${account.id}] cooldown for"
+  },
+  {
+    "id": "auth-block-dashboard-reason",
+    "before": "        disabled_by: config.enabled === false ? 'file' : (account.adminDisabled === true ? 'admin' : null),",
+    "after": "        disabled_by: account.authBlocked === true ? 'auth' : (config.enabled === false ? 'file' : (account.adminDisabled === true ? 'admin' : null)),"
+  },
+  {
+    "id": "auth-block-pinned-401",
+    "before": "    if (!isAccountEnabled(account)) throw pinnedAccountError(409, 'account_unavailable', `Account ${pinnedId} is paused. Resume it in /dashboard or pick another account.`);",
+    "after": "    if (account.authBlocked === true) throw pinnedAccountError(401, 'auth_expired', `Account ${pinnedId} has invalid DeepSeek credentials. Re-authenticate and reload accounts.`);\n    if (!isAccountEnabled(account)) throw pinnedAccountError(409, 'account_unavailable', `Account ${pinnedId} is paused. Resume it in /dashboard or pick another account.`);"
+  },
+  {
+    "id": "auth-block-unpinned-401",
+    "before": "        const switchedOff = accounts.filter(a => accountHasCredentials(a) && !isAccountEnabled(a)).map(a => a.id);",
+    "after": "        const invalidLogin = accounts.find(a => accountHasCredentials(a) && a.authBlocked === true);\n        if (invalidLogin) throw pinnedAccountError(401, 'auth_expired', 'DeepSeek login was rejected (401). Re-authenticate and reload accounts before continuing.');\n        const switchedOff = accounts.filter(a => accountHasCredentials(a) && !isAccountEnabled(a)).map(a => a.id);"
+  },
+  {
+    "id": "auth-block-clear-cooldown-reject",
+    "before": "        } else {\n            account.cooldownUntil = 0;\n            account.cooldownReason = null;\n        }\n        console.log(`[admin] account ${account.id}: ${action}`);",
+    "after": "        } else {\n            if (account.authBlocked === true) {\n                adminError(res, 409, 'auth_expired', 'DeepSeek rejected this login (401). Re-authenticate and reload the changed credentials; clearing cooldown will not restore it.');\n                return;\n            }\n            account.cooldownUntil = 0;\n            account.cooldownReason = null;\n        }\n        console.log(`[admin] account ${account.id}: ${action}`);"
   }
 ];
 
