@@ -21,6 +21,7 @@ function extractFunctions(src, startName, endName, bindings) {
     assert.ok(start !== -1 && end > start, 'Expected upstream source section exists');
     return vm.runInNewContext(src.slice(start, end) + '\n(' + bindings + ')', {
         MAX_UPSTREAM_PROMPT_CHARS: 200000,
+        MAX_TOOL_ARGUMENT_CHARS: 128 * 1024,
         compactToolSchema: schema => schema,
         appendPromptInstruction: (prompt, reminder) => prompt + '\n' + reminder,
     });
@@ -97,7 +98,23 @@ test('DSH first-user task identities stay stable across turns but separate unrel
     assert.match(patched, /unkeyedAgentId\(remoteAddr, req\.headers\['user-agent'\], messages\)/);
 });
 
+test('DSH duplicate tool envelope is unwrapped into exact tool arguments', () => {
+    const tools = extractFunctions(patched,
+        'function buildToolCall(name, args = {}) {', '\nfunction parseJsonToolCandidate(',
+        '{buildToolCall, coerceToolCallObject}');
+    const wrapped = { name:'pwsh', arguments:{ name:'pwsh', arguments:{ command:'git status', description:'Read status' } } };
+    const coerced = tools.coerceToolCallObject({ tool_call: wrapped });
+    assert.equal(coerced.name, 'pwsh');
+    assert.deepEqual(JSON.parse(coerced.arguments), { command:'git status', description:'Read status' });
+    const read = tools.coerceToolCallObject({ tool_call:{ name:'read', arguments:{name:'read', arguments:{file_path:'README.md'}} } });
+    assert.deepEqual(JSON.parse(read.arguments), {file_path:'README.md'});
+    const ordinary = tools.buildToolCall('pwsh', {command:'git --version',description:'Check git'});
+    assert.deepEqual(JSON.parse(ordinary.arguments), {command:'git --version',description:'Check git'});
+    const unrelated = tools.buildToolCall('pwsh', {name:'other',arguments:{command:'X'}});
+    assert.equal(JSON.parse(unrelated.arguments).name, 'other');
+});
+
 test('an upstream mismatch fails rather than silently skipping the correction', () => {
-    const mismatched = source.replace('Web: answer in text. DeepSeek Search is already on.', 'Web: changed upstream instruction.');
-    assert.throws(() => patchSource(mismatched), /Upstream changed near web-tool-reminder/);
+    const mismatched = patched.replace('Web: Use the advertised web search/fetch tool', 'Web: changed upstream instruction');
+    assert.throws(() => patchSource(mismatched), /Upstream changed near web-tool-prompt/);
 });
