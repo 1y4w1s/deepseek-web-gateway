@@ -30,6 +30,14 @@ git clone https://github.com/1y4w1s/deepseek-web-gateway.git
 
 证据：本机代理至 `chat.deepseek.com:443` 的 HTTP CONNECT 返回 200；Node 环境代理本地模拟测试通过，两种启动器的 PowerShell AST 语法检查均无错误。**这些测试验证的是出口配置与请求转发，不代表账号认证已恢复。** 之前的 `401 INVALID_TOKEN` 可能还有 Token 失效、上游策略或网页接口变化等原因；真实开发长任务仍待验证。
 
+### Chrome 登录态有效性验证（2026-11-03）
+
+现有登录入口 `Authenticate.ps1` 会先应用兼容补丁，再运行上游的 Chrome 登录脚本。新的登录脚本在**替换本地凭证文件之前**，使用同一个 DeepSeek Chrome 页面的会话凭证，向 `POST /api/v0/chat/create_pow_challenge` 发送**仅一次**认证验证请求（目标为补全接口，不发送聊天消息）。只有 HTTP 与业务状态均成功时才保存新凭证；遇到 `401`、业务拒绝、网络错误、超时或误打开其他网站时，保留原登录文件并报告失败。验证有超时上限，不在失败时循环重试。
+
+如需重新登录，请用本地的 `Authenticate.ps1`，在启动器打开的 Chrome 完成登录，并按提示继续；登录成功后回到 Dashboard → Accounts → Reload accounts，供运行中的网关加载变更后的凭证。不要分享 `deepseek-auth.json`、浏览器资料或 Token。
+
+**验证范围：** Chrome DevTools 模拟成功/失败/超时/跨站以及旧凭证保留测试共 7 项通过，本仓库兼容与协议相关测试合计 30/30 PASS。真实浏览器重新登录流程在此改动之后尚未手工验收，不能据此保证 DeepSeek 之后不会再出现 401、429 或其他风控限制。
+
 ## 本机 API 与 DSH 配置
 
 | 项目 | 设置 |
