@@ -7,6 +7,11 @@ const path = require('node:path');
 // Fail instead of silently launching an unpatched adapter after an upstream change.
 const edits = [
   {
+    "id": "dsh-tool-args-envelope",
+    "before": "    if (parsedArgs === null || parsedArgs === undefined) parsedArgs = {};",
+    "after": "    if (parsedArgs === null || parsedArgs === undefined) parsedArgs = {};\n    // The Web model sometimes duplicates the tool-call envelope inside arguments.\n    // Unwrap only an exact {name, arguments} with a matching tool name.\n    if (parsedArgs && typeof parsedArgs === 'object' && !Array.isArray(parsedArgs)\n        && parsedArgs.name === toolName && Object.prototype.hasOwnProperty.call(parsedArgs, 'arguments')\n        && Object.keys(parsedArgs).every(key => key === 'name' || key === 'arguments')\n        && parsedArgs.arguments && typeof parsedArgs.arguments === 'object' && !Array.isArray(parsedArgs.arguments)) {\n        parsedArgs = parsedArgs.arguments;\n    }"
+  },
+  {
     "id": "dsh-unkeyed-signature",
     "before": "function unkeyedAgentId(remoteAddr, userAgent) {",
     "after": "function unkeyedAgentId(remoteAddr, userAgent, messages = []) {"
@@ -43,10 +48,10 @@ function patchSource(source) {
     for (const edit of edits) {
         const beforeCount = output.split(edit.before).length - 1;
         const afterCount = output.split(edit.after).length - 1;
-        if (beforeCount === 1 && afterCount === 0) {
+        if (afterCount === 1 && beforeCount <= 1) {
+            continue; // already patched (the replacement may contain the old marker)
+        } else if (beforeCount === 1 && afterCount === 0) {
             output = output.replace(edit.before, edit.after);
-        } else if (beforeCount === 0 && afterCount === 1) {
-            continue; // already patched
         } else {
             throw new Error('Upstream changed near ' + edit.id + '; review the patch before launching.');
         }
