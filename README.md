@@ -138,6 +138,12 @@ node --test tests/compat.test.cjs tests/protocol-parser.test.cjs
 
 关闭的是模型辅助命名调用；DSH 仍可根据第一条用户消息生成本地回退标题，不影响主任务、工具调用和会话日志。此设置作用于**整个被应用的 DSH profile**，因此不自动写入日常 desktop profile（它也可能包含其他模型提供方）。本机已仅写入两个隔离网关用例的 patch：`acceptance/dsh-coding.patch.yml` 与 `publish/tests/dsh-headless.patch.yml`。所有证据来自本地模拟 429，不是被禁言账号的真实恢复测试。不要利用自动化绕过账号限制。
 
+### DSH 工具定义变化后的上下文节省修复（2026-11-03）
+
+现有 Sticky continuation 在上游会话复用时会省略重复系统提示词和旧消息，但过去只按“曾发送过”判断，**没有比较本轮工具定义、参数 Schema 或系统指令是否变化**。这会让新增/变更的工具说明被省略。最小补丁改为对比已发送系统内容的 SHA-256 指纹与本轮指纹：一致时继续节省上下文，变化时才补发新系统/工具说明；无需新增缓存层或服务。
+
+离线回归采用现有上游源码与模拟会话，新增 4 个用例：相同内容省略、系统指令变化重发、工具列表变化重发、Schema 变化重发；修复前新增用例 1/4 PASS，修复后与网关其他针对性测试合计 **36/36 PASS**。代码随现有 `patches/apply-upstream.cjs` 发布，但**本轮没有重启或热改正在运行的网关**。真实 DeepSeek 账号受限期间不做联网验收；上游仓库原有“指令变化仍省略”旧测试的预期已经过时，后续应同步更新，不要把它视为正确行为。
+
 ## 限流与 DSH 重试（可选配置，不自动修改 DSH）
 
 真实任务中曾发生：DSH 成功 `git fetch` 且 `HEAD` 与远程分支一致，但继续请求模型后触发网页端 600 秒限流；DSH 默认对 `RATE_LIMIT` 重试五次。这个网关无法替 DSH 消除客户端自有的重试策略。**可在 DSH 已有的 `llm-pi-ai` → `providers` → `deepseek-web-local` 条目内**添加下列配置（不要另建第二个同 ID 的 patch entry）：
