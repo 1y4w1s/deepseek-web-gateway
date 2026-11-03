@@ -153,8 +153,12 @@ test('DeepSeek Web requests are paced per account without delaying first use or 
     now += 9000;
     await paceAccountCompletion(accountA);
     assert.deepEqual(waits, [13000, 6000]);
-    assert.match(patched, /await paceAccountCompletion\(account\);\s*const resp = await dsStreamFetch/);
-    assert.match(patched, /await paceAccountCompletion\(account\);\s*const resp2 = await dsStreamFetch/);
+    // A 15-second queue wait must not consume PoW challenge lifetime.
+    assert.match(patched, /await paceAccountCompletion\(account\);\s*const powB64 = await createDeepSeekPowHeader\(account, DEEPSEEK_COMPLETION_PATH\);\s*const resp = await dsStreamFetch/);
+    assert.match(patched, /await paceAccountCompletion\(account\);\s*const newPowB64 = await createDeepSeekPowHeader\(account, DEEPSEEK_COMPLETION_PATH\);\s*const resp2 = await dsStreamFetch/);
+    const ask = patched.slice(patched.indexOf('async function askDeepSeekStream('), patched.indexOf('// === Tool Calling Support ==='));
+    assert.equal((ask.match(/const powB64 = await createDeepSeekPowHeader/g) || []).length, 1);
+    assert.ok(ask.indexOf('const powB64 = await createDeepSeekPowHeader') > ask.indexOf('if (!session.id) {'));
 });
 
 test('an upstream mismatch fails rather than silently skipping the correction', () => {
