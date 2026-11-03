@@ -92,6 +92,12 @@ retryPolicy:
 
 ## 验收说明
 
-原先一台 Windows 机器已验证上游代理的健康检查、模型列表、连续对话和工具调用格式。**本仓库的一键可移植启动器只完成了静态检查，尚未在第二台电脑进行真实首次安装验收**；以目标电脑实际结果为准。
+- **补丁单元回归：7/7 PASS**，覆盖 `-nosearch` 工具提示、会话隔离、重复嵌套的 DSH 工具参数、幂等性与上游变动检测。
+- **本机隔离真实 Web API：PASS**。补丁版临时端口 `9657` 获得 `pwsh` 工具调用，执行真实 `git --version`，工具结果回传模型后成功完成。
+- **本机实际 DSH Headless + read-only：PASS（2026-11-03）**。实际 `tool_call pwsh` 参数为扁平 `{command,description,workdir}`；执行 `git rev-parse --short HEAD` 返回 `a6325e9`；`tool_result completed`、`turn_end completed`、退出码 `0`。仅测试只读读取，不代表任意 GitHub 网络任务均可成功。
+- **已知轻微问题：** Windows 只读 PowerShell 工具的 stderr 另出现两行非致命 `InvalidOperation`，并未影响该 Git 命令完成。
+- **另一台电脑的首次安装：NOT_RUN**。本机验证不能替代目标电脑环境的独立安装验收。
+
+补丁只修正实际验证到的兼容性问题，仍无法让网页端模拟 Tool Calls 变成官方 DeepSeek API 的原生函数调用。
 
 **上游版权：** 代理服务来自 [FreeDeepseekAPI](https://github.com/dekrezz/FreeDeepseekAPI)（Apache-2.0）；本仓库不镜像其源码。
