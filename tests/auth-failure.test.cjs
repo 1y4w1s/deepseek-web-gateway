@@ -89,6 +89,20 @@ test('429 remains a timed cooldown and is not reclassified as auth failure', () 
   assert.equal(S.accountCanServe(a), true);
 });
 
+test('a three-day Retry-After blocks repeated local admission without further upstream attempts', t => {
+  const a = makeAccount();
+  const previous = S.accounts.splice(0, S.accounts.length, a);
+  t.after(() => S.accounts.splice(0, S.accounts.length, ...previous));
+  S.markAccountFailure(a, 429, 'completion', '259200', 'synthetic limit');
+  assert.equal(a.cooldownReason, 'rate_limit');
+  assert.ok(a.cooldownUntil - Date.now() > 259190000);
+  const count = a.totalFailures;
+  for (let i = 0; i < 2; i++) {
+    assert.throws(() => S.selectAccountForSession(S.createSession()),
+      err => err.status === 429 && err.type === 'rate_limit' && err.retryAfter > 259190);
+  }
+  assert.equal(a.totalFailures, count);
+});
 test('403 keeps existing temporary cooldown semantics', () => {
   const a = makeAccount();
   S.markAccountFailure(a, 403, 'access', null, 'forbidden');
