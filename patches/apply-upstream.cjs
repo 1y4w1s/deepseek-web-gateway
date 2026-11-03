@@ -133,7 +133,20 @@ const edits = [
   }
 ];
 
-function patchSource(source) {
+const authEdits = [
+  {
+    "id": "auth-verify-in-browser-before-save",
+    "before": "function chromeInstallHelp(checked) {",
+    "after": "// Validate the newly captured token from the same logged-in Chrome page.\n// A non-mutating PoW challenge checks Web authentication without a chat completion.\nasync function verifyCapturedAuth(cdp, auth) {\n    if (!auth?.token || !auth?.cookie) return false;\n    try {\n        if (new URL(auth.href).origin !== 'https://chat.deepseek.com') return false;\n        const expression = `(async () => {\n            const controller = new AbortController();\n            const timeout = setTimeout(() => controller.abort(), 6000);\n            try {\n                const response = await fetch('/api/v0/chat/create_pow_challenge', {\n                    method: 'POST',\n                    credentials: 'include',\n                    headers: {\n                        authorization: 'Bearer ' + ${JSON.stringify(auth.token)},\n                        'content-type': 'application/json',\n                    },\n                    body: JSON.stringify({ target_path: '/api/v0/chat/completion' }),\n                    signal: controller.signal,\n                });\n                if (!response.ok) return false;\n                const body = await response.json();\n                return body?.code === 0 && body?.data?.biz_code === 0;\n            } catch { return false; }\n            finally { clearTimeout(timeout); }\n        })()`;\n        const result = await cdp.send('Runtime.evaluate', {\n            expression, awaitPromise: true, returnByValue: true,\n        });\n        return !result?.exceptionDetails && result?.result?.value === true;\n    } catch { return false; }\n}\nfunction chromeInstallHelp(checked) {"
+  },
+  {
+    "id": "auth-save-only-after-verified-web-login",
+    "before": "    const { href, cookiesCount, ...persisted } = auth;\n    const success = writeCapturedAuth(outPath, persisted);",
+    "after": "    const { href, cookiesCount, ...persisted } = auth;\n    const verified = await verifyCapturedAuth(cdp, auth);\n    const success = verified && writeCapturedAuth(outPath, persisted);\n    if (!verified) console.error('[auth] DeepSeek Web rejected the captured login. Existing credentials were not replaced.');"
+  }
+];
+
+function patchSource(source, replacements = edits) {
     let output = source;
     const makePattern = value => new RegExp(
         value.replace(/\r\n/g, '\n').replace(/\r$/, '')
@@ -146,7 +159,7 @@ function patchSource(source) {
         'pace-completion-first': '        await paceAccountCompletion(account);\n        const powB64 = await createDeepSeekPowHeader',
         'pace-completion-recreate': '                await paceAccountCompletion(account);\n                const newPowB64 = await createDeepSeekPowHeader',
     };
-    for (const edit of edits) {
+    for (const edit of replacements) {
         if (migratedPacing[edit.id] && makePattern(migratedPacing[edit.id]).test(output)) continue;
         const before = makePattern(edit.before);
         const after = makePattern(edit.after);
@@ -167,13 +180,21 @@ function patchSource(source) {
     return output;
 }
 
+function patchAuthSource(source) {
+    return patchSource(source, authEdits);
+}
+
 if (require.main === module) {
     const upstream = process.argv[2] || path.resolve(__dirname, '..', 'runtime', 'upstream');
     const file = path.join(upstream, 'server.js');
     const source = fs.readFileSync(file, 'utf8');
+    const authFile = path.join(upstream, 'scripts', 'deepseek_chrome_auth.js');
+    const authSource = fs.readFileSync(authFile, 'utf8');
     const patched = patchSource(source);
+    const patchedAuth = patchAuthSource(authSource);
     if (patched !== source) fs.writeFileSync(file, patched, 'utf8');
-    console.log(patched === source ? 'Web tool compatibility patch already installed' : 'Web tool compatibility patch applied');
+    if (patchedAuth !== authSource) fs.writeFileSync(authFile, patchedAuth, 'utf8');
+    console.log(patched === source && patchedAuth === authSource ? 'Gateway patches already installed' : 'Gateway patches applied');
 }
 
-module.exports = { patchSource };
+module.exports = { patchSource, patchAuthSource };
