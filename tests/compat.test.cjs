@@ -40,6 +40,19 @@ const gitTool = {
     function: { name: 'bash', description: 'Run approved commands', parameters: { type: 'object' } },
 };
 
+test('fresh upstream checkout patches on LF and CRLF without changing unrelated content', () => {
+    const { execFileSync } = require('node:child_process');
+    const pristine = execFileSync('git', ['show', 'HEAD:server.js'], {
+        cwd: path.dirname(upstreamPath), encoding: 'utf8',
+    });
+    for (const source of [pristine.replace(/\r\n/g, '\n'), pristine.replace(/\r?\n/g, '\r\n')]) {
+        const result = patchSource(source);
+        assert.notEqual(result, source);
+        assert.doesNotThrow(() => new vm.Script(result));
+        assert.equal(patchSource(result), result);
+    }
+});
+
 test('patch is syntactically valid and idempotent', () => {
     assert.doesNotThrow(() => new vm.Script(patched, { filename: 'server.js' }));
     assert.equal(patchSource(patched), patched);
