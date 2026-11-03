@@ -51,6 +51,16 @@ try {
         throw 'Compatibility patch could not be applied. Inspect runtime\patch.stderr.log.'
     }
 
+    # Node fetch does not automatically inherit Chrome's Windows system HTTP proxy.
+    $windowsProxy = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction SilentlyContinue
+    if ([int]$windowsProxy.ProxyEnable -eq 1 -and [string]$windowsProxy.ProxyServer -match '^(?:127\.0\.0\.1|localhost):(\d+)$') {
+        $proxyUrl = 'http://127.0.0.1:' + $Matches[1]
+        $env:HTTPS_PROXY = $proxyUrl
+        $env:HTTP_PROXY = $proxyUrl
+        $env:NO_PROXY = 'localhost,127.0.0.1'
+        $env:NODE_USE_ENV_PROXY = '1'
+    }
+
     $env:HOST = '127.0.0.1'
     $env:PORT = '9655'
     $env:NON_INTERACTIVE = '1'
