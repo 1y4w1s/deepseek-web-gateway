@@ -1,0 +1,7 @@
+runtime/
+*.log
+*.pid
+.env
+.env.*
+deepseek-auth.json
+lan-api-key.txt
