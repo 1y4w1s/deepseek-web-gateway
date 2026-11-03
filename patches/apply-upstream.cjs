@@ -80,13 +80,25 @@ const edits = [
 
 function patchSource(source) {
     let output = source;
+    const makePattern = value => new RegExp(
+        value.replace(/\r\n/g, '\n').replace(/\r$/, '')
+            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/\n/g, '\\r?\\n'),
+        'g'
+    );
     for (const edit of edits) {
-        const beforeCount = output.split(edit.before).length - 1;
-        const afterCount = output.split(edit.after).length - 1;
+        const before = makePattern(edit.before);
+        const after = makePattern(edit.after);
+        const beforeCount = [...output.matchAll(before)].length;
+        const afterCount = [...output.matchAll(after)].length;
         if (afterCount === 1 && beforeCount <= 1) {
-            continue; // already patched (the replacement may contain the old marker)
-        } else if (beforeCount === 1 && afterCount === 0) {
-            output = output.replace(edit.before, edit.after);
+            continue;
+        }
+        if (beforeCount === 1 && afterCount === 0) {
+            const newline = output.includes('\r\n') ? '\r\n' : '\n';
+            const replacement = edit.after.replace(/\r\n/g, '\n').replace(/\r$/, '')
+                .replace(/\n/g, newline);
+            output = output.replace(before, () => replacement);
         } else {
             throw new Error('Upstream changed near ' + edit.id + '; review the patch before launching.');
         }
