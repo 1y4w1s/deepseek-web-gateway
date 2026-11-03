@@ -130,6 +130,11 @@ const edits = [
     "id": "auth-block-clear-cooldown-reject",
     "before": "        } else {\n            account.cooldownUntil = 0;\n            account.cooldownReason = null;\n        }\n        console.log(`[admin] account ${account.id}: ${action}`);",
     "after": "        } else {\n            if (account.authBlocked === true) {\n                adminError(res, 409, 'auth_expired', 'DeepSeek rejected this login (401). Re-authenticate and reload the changed credentials; clearing cooldown will not restore it.');\n                return;\n            }\n            account.cooldownUntil = 0;\n            account.cooldownReason = null;\n        }\n        console.log(`[admin] account ${account.id}: ${action}`);"
+  },
+  {
+    "id": "sticky-prompt-fingerprint-refresh",
+    "before": "    const omitSystem = remoteLive && Boolean(session.sentSystemFingerprint);",
+    "after": "    const omitSystem = remoteLive && session.sentSystemFingerprint === fingerprint;"
   }
 ];
 
