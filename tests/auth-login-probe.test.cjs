@@ -109,6 +109,14 @@ test('failed verification never overwrites an existing login file', async () => 
   }
 });
 
+test('local first-run and re-login launcher applies auth patch before Chrome capture', () => {
+  const ps = fs.readFileSync(path.resolve(__dirname, '..', '..', 'Authenticate.ps1'), 'utf8');
+  assert.match(ps, /publish\\patches\\apply-upstream\.cjs/);
+  assert.ok(ps.indexOf('& $node $patcher $repo') > 0);
+  assert.ok(ps.indexOf('scripts/deepseek_chrome_auth.js') > ps.indexOf('& $node $patcher $repo'));
+  assert.match(ps, /if \(\$LASTEXITCODE -ne 0\).*throw/);
+});
+
 test('auth patch is fresh-checkout compatible for LF and CRLF and idempotent', () => {
   const { execFileSync } = require('node:child_process');
   const pristine = execFileSync('git', ['show', 'HEAD:scripts/deepseek_chrome_auth.js'], {
