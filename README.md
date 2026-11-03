@@ -22,6 +22,14 @@ git clone https://github.com/1y4w1s/deepseek-web-gateway.git
 
 不要在压缩包预览界面直接双击 `Start.vbs`；部署后不要随意移动仓库目录，否则桌面快捷方式将失效。
 
+### Windows 系统代理与 Node 网关出口对齐（2026-11-03）
+
+实机发现：Chrome 登录使用了 Windows 已启用的本地 HTTP 代理，而启动器的 Node.js 原生 `fetch()` 没有设置 `HTTPS_PROXY` / `NODE_USE_ENV_PROXY`，因此网页与网关可能走不同出口。现有启动器在 **Windows 启用本地 `127.0.0.1:端口` 或 `localhost:端口` HTTP 系统代理**时，将代理地址传给**网关子进程**并启用 Node 环境代理；同时将 `127.0.0.1,localhost` 列入 `NO_PROXY`。不会修改 Windows 系统代理、登录文件或 DSH 配置。
+
+此最小匹配不覆盖 PAC、SOCKS、远程代理及复杂的分协议代理字符串；若系统代理使用其他形式，仍使用原有行为。Node.js 24 支持环境代理，但需要显式启用。切换系统代理端口后，应重新启动本地网关进程以重新读取端口；仅打开 Dashboard 不会热更新。
+
+证据：本机代理至 `chat.deepseek.com:443` 的 HTTP CONNECT 返回 200；Node 环境代理本地模拟测试通过，两种启动器的 PowerShell AST 语法检查均无错误。**这些测试验证的是出口配置与请求转发，不代表账号认证已恢复。** 之前的 `401 INVALID_TOKEN` 可能还有 Token 失效、上游策略或网页接口变化等原因；真实开发长任务仍待验证。
+
 ## 本机 API 与 DSH 配置
 
 | 项目 | 设置 |
