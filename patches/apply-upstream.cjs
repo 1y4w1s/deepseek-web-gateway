@@ -40,6 +40,21 @@ const edits = [
     "id": "web-tool-repair",
     "before": "Do not. Answer in plain text from what you already know.",
     "after": "Do not call an unadvertised tool. If a web tool is available, use its exact advertised name; otherwise state that live source access is unavailable."
+  },
+  {
+    "id": "pace-account-model-completions",
+    "before": "async function askDeepSeekStream(prompt, agentId, model = DEFAULT_MODEL_ID, freshSessionPrompt = prompt, lockHolder = null, imageContext = null, webFlags = null) {",
+    "after": "// Keep DeepSeek Web messages spaced without slowing output or local tools.\n// The existing per-account chat lock serializes concurrent DSH tasks.\nasync function paceAccountCompletion(account) {\n    const remaining = 15000 - (Date.now() - (account.lastCompletionSentAt || 0));\n    if (remaining > 0) await sleep(remaining);\n    account.lastCompletionSentAt = Date.now();\n}\n\nasync function askDeepSeekStream(prompt, agentId, model = DEFAULT_MODEL_ID, freshSessionPrompt = prompt, lockHolder = null, imageContext = null, webFlags = null) {"
+  },
+  {
+    "id": "pace-completion-first",
+    "before": "        const resp = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {",
+    "after": "        await paceAccountCompletion(account);\n        const resp = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {"
+  },
+  {
+    "id": "pace-completion-recreate",
+    "before": "                const resp2 = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {",
+    "after": "                await paceAccountCompletion(account);\n                const resp2 = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {"
   }
 ];
 
