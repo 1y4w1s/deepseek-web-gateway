@@ -44,6 +44,13 @@ try {
         }
     }
 
+    $compat = Join-Path $root 'patches\apply-upstream.cjs'
+    $compatArgs = '"' + $compat + '" "' + $upstream + '"'
+    $patched = Start-Process -FilePath $node -ArgumentList $compatArgs -WorkingDirectory $root -WindowStyle Hidden -PassThru -Wait -RedirectStandardOutput (Join-Path $runtime 'patch.stdout.log') -RedirectStandardError (Join-Path $runtime 'patch.stderr.log')
+    if ($patched.ExitCode -ne 0) {
+        throw 'Compatibility patch could not be applied. Inspect runtime\patch.stderr.log.'
+    }
+
     $env:HOST = '127.0.0.1'
     $env:PORT = '9655'
     $env:NON_INTERACTIVE = '1'
