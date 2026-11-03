@@ -55,6 +55,26 @@ const edits = [
     "id": "pace-completion-recreate",
     "before": "                const resp2 = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {",
     "after": "                await paceAccountCompletion(account);\n                const resp2 = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {"
+  },
+  {
+    "id": "fenced-json-closing-delimiters",
+    "before": "        absorbJsonToolPayload(fence[2].trim(), calls, seen);",
+    "after": "        absorbJsonToolPayload(fence[2].trim(), calls, seen);\n        // Reuse the existing closing-delimiter-only repair for JSON fences too.\n        absorbJsonToolPayload(repairTruncatedJsonEnvelope(fence[2].trim()), calls, seen);"
+  },
+  {
+    "id": "tool-markup-prose-field",
+    "before": "    return /TOOL_CALL:\\s*[\\w-]+|<\\s*[|｜]*\\s*tool_call\\b|[|｜]+\\s*DSML\\s*[|｜]+|[<＜]\\s*\\/?\\s*(?:DSML)?(?:[\\w.-]+:)?(?:tool[\\s_-]*calls|function[\\s_-]*calls|invoke)\\b|[\"'](?:tool_call|tool_calls|function_call)[\"']\\s*:/i.test(String(text || ''));\r",
+    "after": "    return /TOOL_CALL:\\s*[\\w-]+|<\\s*[|｜]*\\s*tool_call\\b|[|｜]+\\s*DSML\\s*[|｜]+|[<＜]\\s*\\/?\\s*(?:DSML)?(?:[\\w.-]+:)?(?:tool[\\s_-]*calls|function[\\s_-]*calls|invoke)\\b|\\{\\s*[\"'](?:tool_call|tool_calls|function_call)[\"']\\s*:/i.test(String(text || ''));\r"
+  },
+  {
+    "id": "no-execute-source-code-fences",
+    "before": "function collectAgentToolCalls(text, allowedToolNames) {\r\n    const allowed = allowedToolNames instanceof Set ? allowedToolNames : new Set(allowedToolNames || []);\r\n    if (!text || allowed.size === 0) return [];\r\n    const keepAllowed = (raw) => {\r\n        const calls = [];\r\n        const seen = new Set();\r\n        for (const call of raw) {\r\n            if (!call || !allowed.has(call.name)) continue;\r\n            rememberToolCall(calls, seen, call);\r\n            if (calls.length >= MAX_AGENT_TOOL_CALLS) break;\r\n        }\r\n        return calls;\r\n    };\r\n    const calls = keepAllowed(hasDsmlToolMarkup(text) ? listDsmlToolCalls(text) : collectJsonToolCalls(text));\r\n    if (calls.length > 0 || !hasDsmlToolMarkup(text)) return calls;\r\n    const repaired = keepAllowed(listDsmlToolCalls(repairGarbledDsmlStructure(text)));\r\n    if (repaired.length > 0) {\r\n        console.log(`[parseToolCall] Repaired garbled DSML structure: ${repaired.map(call => call.name).join(', ')}`);\r\n        return repaired;\r\n    }\r\n    const salvaged = salvageGarbledDsmlCalls(text);\r\n    if (salvaged.length === 0 || !salvaged.every(call => allowed.has(call.name))) return [];\r\n    console.log(`[parseToolCall] Salvaged garbled DSML: ${salvaged.map(call => call.name).join(', ')}`);\r\n    return keepAllowed(salvaged);\r\n}\r\n\r",
+    "after": "// Source-code examples must never be interpreted as executable tool requests.\nfunction withoutSourceCodeFences(text) {\n    return String(text || '').replace(/```([a-zA-Z0-9#+_-]+)\\s*([\\s\\S]*?)```/gi,\n        (whole, language) => language.toLowerCase() === 'json' ? whole : '');\n}\nfunction collectAgentToolCalls(text, allowedToolNames) {\r\n    const allowed = allowedToolNames instanceof Set ? allowedToolNames : new Set(allowedToolNames || []);\n    const executableText = withoutSourceCodeFences(text);\r\n    if (!text || allowed.size === 0) return [];\r\n    const keepAllowed = (raw) => {\r\n        const calls = [];\r\n        const seen = new Set();\r\n        for (const call of raw) {\r\n            if (!call || !allowed.has(call.name)) continue;\r\n            rememberToolCall(calls, seen, call);\r\n            if (calls.length >= MAX_AGENT_TOOL_CALLS) break;\r\n        }\r\n        return calls;\r\n    };\r\n    const calls = keepAllowed(hasDsmlToolMarkup(executableText) ? listDsmlToolCalls(executableText) : collectJsonToolCalls(executableText));\r\n    if (calls.length > 0 || !hasDsmlToolMarkup(executableText)) return calls;\r\n    const repaired = keepAllowed(listDsmlToolCalls(repairGarbledDsmlStructure(executableText)));\r\n    if (repaired.length > 0) {\r\n        console.log(`[parseToolCall] Repaired garbled DSML structure: ${repaired.map(call => call.name).join(', ')}`);\r\n        return repaired;\r\n    }\r\n    const salvaged = salvageGarbledDsmlCalls(executableText);\r\n    if (salvaged.length === 0 || !salvaged.every(call => allowed.has(call.name))) return [];\r\n    console.log(`[parseToolCall] Salvaged garbled DSML: ${salvaged.map(call => call.name).join(', ')}`);\r\n    return keepAllowed(salvaged);\r\n}\r\n\r"
+  },
+  {
+    "id": "no-false-markup-source-code-fences",
+    "before": "function looksLikeToolCallMarkup(text) {",
+    "after": "function looksLikeToolCallMarkup(text) {\n    text = withoutSourceCodeFences(text);"
   }
 ];
 
