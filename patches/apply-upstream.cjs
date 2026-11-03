@@ -75,6 +75,21 @@ const edits = [
     "id": "no-false-markup-source-code-fences",
     "before": "function looksLikeToolCallMarkup(text) {",
     "after": "function looksLikeToolCallMarkup(text) {\n    text = withoutSourceCodeFences(text);"
+  },
+  {
+    "id": "pow-after-session-create",
+    "before": "    const refFileIds = imageContext?.refFileIds || [];\n    const powB64 = await createDeepSeekPowHeader(account, DEEPSEEK_COMPLETION_PATH);",
+    "after": "    const refFileIds = imageContext?.refFileIds || [];\n    // Keep challenge acquisition adjacent to completion, after pacing and session creation."
+  },
+  {
+    "id": "pow-after-first-pacing",
+    "before": "    try {\n        await paceAccountCompletion(account);\n        const resp = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {",
+    "after": "    try {\n        await paceAccountCompletion(account);\n        const powB64 = await createDeepSeekPowHeader(account, DEEPSEEK_COMPLETION_PATH);\n        const resp = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {"
+  },
+  {
+    "id": "pow-after-recreate-pacing",
+    "before": "                const newPowB64 = await createDeepSeekPowHeader(account, DEEPSEEK_COMPLETION_PATH);\n                await paceAccountCompletion(account);\n                const resp2 = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {",
+    "after": "                await paceAccountCompletion(account);\n                const newPowB64 = await createDeepSeekPowHeader(account, DEEPSEEK_COMPLETION_PATH);\n                const resp2 = await dsStreamFetch('https://chat.deepseek.com/api/v0/chat/completion', {"
   }
 ];
 
@@ -86,7 +101,13 @@ function patchSource(source) {
             .replace(/\n/g, '\\r?\\n'),
         'g'
     );
+    // An already-migrated placement supersedes the two legacy pre-POST pacing edits.
+    const migratedPacing = {
+        'pace-completion-first': '        await paceAccountCompletion(account);\n        const powB64 = await createDeepSeekPowHeader',
+        'pace-completion-recreate': '                await paceAccountCompletion(account);\n                const newPowB64 = await createDeepSeekPowHeader',
+    };
     for (const edit of edits) {
+        if (migratedPacing[edit.id] && makePattern(migratedPacing[edit.id]).test(output)) continue;
         const before = makePattern(edit.before);
         const after = makePattern(edit.after);
         const beforeCount = [...output.matchAll(before)].length;
