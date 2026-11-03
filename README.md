@@ -46,6 +46,7 @@ git clone https://github.com/1y4w1s/deepseek-web-gateway.git
 - 在 `-nosearch` 模型下，如果 DSH 真正提供 `websearch`、`webfetch` 或类似工具，网关不再提示模型禁止调用这些已提供的工具。
 - 要查看 **GitHub 仓库源码**，优先让 DSH 使用已授权的 Git/终端工具，在独立目录执行 `git clone` 并实际读取文件；网页搜索结果不能代替源码文件。
 - 如果 DSH 根本没有提供联网、Git 或终端工具，这个补丁不会创造它们，也不能修复 DNS、代理、GitHub 访问受限的问题。
+- DSH 的 `web_search` / `web_fetch` 要求自身装载对应工具、且选择的搜索/抓取服务就绪；`-nosearch` 只关闭 DeepSeek 网页搜索，不会自动安装 DSH 联网工具。没有这些工具时，可先改选 `deepseek-v4-flash-thinking` 使用 DeepSeek 网页搜索，但要验证 GitHub **源码文件**仍需实际 Git/终端读取。
 - 当使用带搜索的模型时，DeepSeek 网页搜索仍由 DeepSeek 端实现；需要可验证的源码文件时仍应使用 DSH 工具。
 
 补丁是幂等的；上游代码发生不兼容变更时会**停止启动并给出错误**，不会默默假装已经修复。排查 `runtime/patch.stderr.log`。
