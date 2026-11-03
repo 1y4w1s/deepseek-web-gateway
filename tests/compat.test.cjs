@@ -114,6 +114,36 @@ test('DSH duplicate tool envelope is unwrapped into exact tool arguments', () =>
     assert.equal(JSON.parse(unrelated.arguments).name, 'other');
 });
 
+test('DeepSeek Web requests are paced per account without delaying first use or other accounts', async () => {
+    let now = 100000;
+    const waits = [];
+    const paceAccountCompletion = vm.runInNewContext(
+        patched.slice(
+            patched.indexOf('async function paceAccountCompletion(account) {'),
+            patched.indexOf('async function askDeepSeekStream(')
+        ) + '\n(paceAccountCompletion)',
+        {
+            Date: { now: () => now },
+            sleep: async ms => { waits.push(ms); now += ms; },
+        },
+    );
+    const accountA = {};
+    await paceAccountCompletion(accountA);
+    assert.equal(accountA.lastCompletionSentAt, 100000);
+    now += 2000;
+    await paceAccountCompletion(accountA);
+    assert.equal(accountA.lastCompletionSentAt, 115000);
+    assert.deepEqual(waits, [13000]);
+    const accountB = {};
+    await paceAccountCompletion(accountB);
+    assert.equal(accountB.lastCompletionSentAt, now);
+    now += 9000;
+    await paceAccountCompletion(accountA);
+    assert.deepEqual(waits, [13000, 6000]);
+    assert.match(patched, /await paceAccountCompletion\(account\);\s*const resp = await dsStreamFetch/);
+    assert.match(patched, /await paceAccountCompletion\(account\);\s*const resp2 = await dsStreamFetch/);
+});
+
 test('an upstream mismatch fails rather than silently skipping the correction', () => {
     const mismatched = patched.replace('Web: Use the advertised web search/fetch tool', 'Web: changed upstream instruction');
     assert.throws(() => patchSource(mismatched), /Upstream changed near web-tool-prompt/);
