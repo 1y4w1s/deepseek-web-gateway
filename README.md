@@ -36,7 +36,7 @@ git clone https://github.com/1y4w1s/deepseek-web-gateway.git
 
 如需重新登录，请用本地的 `Authenticate.ps1`，在启动器打开的 Chrome 完成登录，并按提示继续；登录成功后回到 Dashboard → Accounts → Reload accounts，供运行中的网关加载变更后的凭证。不要分享 `deepseek-auth.json`、浏览器资料或 Token。
 
-**验证范围：** Chrome DevTools 模拟成功/失败/超时/跨站以及旧凭证保留测试共 7 项通过，本仓库兼容与协议相关测试合计 30/30 PASS。真实浏览器重新登录流程在此改动之后尚未手工验收，不能据此保证 DeepSeek 之后不会再出现 401、429 或其他风控限制。
+**验证范围：** Chrome DevTools 模拟成功/失败/超时/跨站以及旧凭证保留测试共 7 项通过，本仓库兼容与协议相关测试合计 31/31 PASS；上游认证与解析专项 47/47 PASS。真实浏览器重新登录流程在此改动之后尚未手工验收，不能据此保证 DeepSeek 之后不会再出现 401、429 或其他风控限制。
 
 ## 本机 API 与 DSH 配置
 
